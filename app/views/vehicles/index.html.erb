@@ -1,0 +1,657 @@
+<% content_for(:class) { "vehicle index" } %>
+
+<div ng-controller="VehiclesController" ng-init="initialize()">
+	<section>
+		<%# Filters and Pagination %>
+		<header class="{{ subHeaderClass }}">
+			<ul>
+				<li class="page-name">
+					{{ pageTitle }}
+				</li>
+				<li class="filters">
+					<ul ng-show="anyFiltersPresent()">
+						<li class="dropdown" ng-show="showYardFilter">
+							<select class="thin" ng-model="yard" data-field-name="yard" ng-options="yard as yard.name for yard in copartYards"
+											ng-change="yardFilterSelectionMade()">
+								<option value=""><%= "#{t('views.vehicle.index.yard')}" %></option>
+							</select>
+						</li>
+						<li class="dropdown" ng-show="showAuctionDateFilter">
+							<select class="thin" ng-model="auctionDate" data-field-name="auctionDate" ng-options="auction_date as (auction_date | date:'dd.MM.yyyy') for auction_date in auctionDates"
+											ng-change="auctionDateFilterSelectionMade()">
+								<option value=""><%= "#{t('views.vehicle.index.auction_date_selection')}" %></option>
+							</select>
+						</li>
+						<li class="dropdown" ng-show="showMemberFilter">
+							<select class="thin"
+											ng-model="member"
+											data-field-name="member"
+											ng-options="member as member.member_name for member in members | orderBy:'member_name'"
+											ng-change="memberFilterSelectionMade()">
+								<option value=""><%= "#{t('views.vehicle.index.member_name')}" %></option>
+							</select>
+						</li>
+						<li class="dropdown last" ng-show="showSellerFilter">
+							<select class="thin"
+											ng-model="seller"
+											data-field-name="seller"
+											ng-options="seller as seller.name for seller in sellers"
+											ng-change="sellerFilterSelectionMade()">
+								<option value=""><%= "#{t('views.vehicle.index.seller')}" %></option>
+							</select>
+							<i class="fa fa-times" ng-show="auctionDate || facility || seller || yard || member"
+								 ng-click="clearFilters()" title="<%= t('views.shared.clear_all_filters') %>"></i>
+						</li>
+					</ul>
+				</li>
+				<li class="paging">
+					<ul>
+						<li class="pagination-stats" ng-show="totalRecords > 0">
+							{{ getCurrentPageItemRange() }} <%= t("views.shared.of") %> {{ totalRecords }}
+						</li>
+						<li class="pagination-arrow">
+							<a href="#" ng-click="showPreviousPage()" ng-show="showPreviousPageLink()">
+								<i class="fa fa-angle-left fa-2x"></i>
+							</a>
+						</li>
+						<li class="pagination-arrow">
+							<a href="#" ng-click="showNextPage()" ng-show="showNextPageLink()">
+								<i class="fa fa-angle-right fa-2x"></i>
+							</a>
+						</li>
+					</ul>
+				</li>
+			</ul>
+		</header>
+
+		<%# Column Headers %>
+		<footer>
+			<ul>
+
+				<li class="flag-status"
+						ng-if="true"
+						ng-click="sortByColumn('approaching_auction')" >
+					<i class="fa fa-flag"></i>
+					<i class="fa fa-caret-up" ng-show="shouldShowUpCaret('approaching_auction')"></i>
+					<i class="fa fa-caret-down" ng-show="shouldShowDownCaret('approaching_auction')"></i>
+				</li>
+				<%# Locked Status (a locked lot may not be edited) %>
+				<%# The most common case for this is a lot about to be auctioned. %>
+				<li class="locked-status"
+						ng-if="locked_status_column"
+						ng-click="sortByColumn('approaching_auction')" 
+						title="<%= t('views.vehicle.index.locked_status') %>">
+					<i class="fa fa-lock"></i>
+					<i class="fa fa-caret-up" ng-show="shouldShowUpCaret('approaching_auction')"></i>
+					<i class="fa fa-caret-down" ng-show="shouldShowDownCaret('approaching_auction')"></i>
+				</li>
+
+				<%# Lot Number %>
+				<li class="lot"
+						ng-show="lot_num_column"
+						ng-click="sortByColumn('lot_num')" 
+						title="<%= t('views.vehicle.index.lot_number') %>">
+					<%= t("views.vehicle.index.lot_number") %>
+					<i class="fa fa-caret-up" ng-show="shouldShowUpCaret('lot_num')"></i>
+					<i class="fa fa-caret-down" ng-show="shouldShowDownCaret('lot_num')"></i>
+				</li>
+
+				<%# Lot Year %>
+				<li class="year"
+						ng-show="year_column"
+						ng-click="sortByColumn('year')" 
+						title="<%= t('views.vehicle.index.year') %>">
+					<%= t("views.vehicle.index.year") %>
+					<i class="fa fa-caret-up" ng-show="shouldShowUpCaret('year')"></i>
+					<i class="fa fa-caret-down" ng-show="shouldShowDownCaret('year')"></i>
+				</li>
+
+				<%# Lot Make %>
+				<li class="make"
+						ng-show="make_column"
+						ng-click="sortByColumn('sort_name_of_make')" 
+						title="<%= t('views.vehicle.index.make') %>">
+					<%= t("views.vehicle.index.make") %>
+					<i class="fa fa-caret-up" ng-show="shouldShowUpCaret('sort_name_of_make')"></i>
+					<i class="fa fa-caret-down" ng-show="shouldShowDownCaret('sort_name_of_make')"></i>
+				</li>
+
+				<%# Lot Model %>
+				<li class="model"
+						ng-show="model_column"
+						ng-click="sortByColumn('sort_name_of_model')" 
+						title="<%= t('views.vehicle.index.model') %>">
+					<%= t("views.vehicle.index.model") %>
+					<i class="fa fa-caret-up" ng-show="shouldShowUpCaret('sort_name_of_model')"></i>
+					<i class="fa fa-caret-down" ng-show="shouldShowDownCaret('sort_name_of_model')"></i>
+				</li>
+
+				<%# Lot Color %>
+				<li class="color"
+						ng-show="color_column"
+						ng-click="sortByColumn('color')" 
+						title="<%= t('views.vehicle.index.color') %>">
+					<%= t("views.vehicle.index.color") %>
+					<i class="fa fa-caret-up" ng-show="shouldShowUpCaret('color')"></i>
+					<i class="fa fa-caret-down" ng-show="shouldShowDownCaret('color')"></i>
+				</li>
+
+				<%# Seller Name %>
+				<li class="seller"
+						ng-show="seller_column"
+						ng-click="sortByColumn('seller')" 
+						title="<%= t('views.vehicle.index.seller') %>">
+					<%= t("views.vehicle.index.seller") %>
+					<i class="fa fa-caret-up" ng-show="shouldShowUpCaret('seller')"></i>
+					<i class="fa fa-caret-down" ng-show="shouldShowDownCaret('seller')"></i>
+				</li>
+
+				<%# Claim Rep (Adjuster) Name %>
+				<li class="claim-rep" 
+						ng-show="claim_rep_column"
+						ng-click="sortByColumn('claim_rep')" 
+						title="<%= t('views.vehicle.index.claim_rep') %>">
+					<%= t("views.vehicle.index.claim_rep") %>
+					<i class="fa fa-caret-up" ng-show="shouldShowUpCaret('claim_rep')"></i>
+					<i class="fa fa-caret-down" ng-show="shouldShowDownCaret('claim_rep')"></i>
+				</li>
+
+				<%# Location Name %>
+				<li class ="location"
+						ng-show="location_column"
+						ng-click="sortByColumn('location')" 
+						title="<%= t('views.vehicle.index.location') %>">
+					<%= t("views.vehicle.index.location") %>
+					<i class="fa fa-caret-up" ng-show="shouldShowUpCaret('location')"></i>
+					<i class="fa fa-caret-down" ng-show="shouldShowDownCaret('location')"></i>
+				</li>
+
+				<%# Location City %>
+				<li class ="city"
+						ng-show="city_column"
+						ng-click="sortByColumn('city')" 
+						title="<%= t('views.vehicle.index.city') %>">
+					<%= t("views.vehicle.index.city") %>
+					<i class="fa fa-caret-up" ng-show="shouldShowUpCaret('city')"></i>
+					<i class="fa fa-caret-down" ng-show="shouldShowDownCaret('city')"></i>
+				</li>
+
+				<%# Location State Province %>
+				<li class="state-province" 
+						ng-show="state_province_column"
+						ng-click="sortByColumn('state_province')" >
+					<%= t("views.vehicle.index.state") %>
+					<i class="fa fa-caret-up" ng-show="shouldShowUpCaret('state_province')"></i>
+					<i class="fa fa-caret-down" ng-show="shouldShowDownCaret('state_province')"></i>
+				</li>
+
+				<%# Location Zip %>
+				<li class ="zip"
+						ng-show="zip_column"
+						ng-click="sortByColumn('zip')" 
+						title="<%= t('views.vehicle.index.zip') %>">
+					<%= t("views.vehicle.index.zip") %>
+					<i class="fa fa-caret-up" ng-show="shouldShowUpCaret('zip')"></i>
+					<i class="fa fa-caret-down" ng-show="shouldShowDownCaret('zip')"></i>
+				</li>
+
+				<%# Promised Pickup Date %>
+				<li class ="promised-pickup-date"
+						ng-show="promised_pickup_date_column"
+						ng-click="sortByColumn('promised_pickup_date')" 
+						title="<%= t('views.vehicle.index.promised_pickup') %>">
+					<%= t("views.vehicle.index.promised_pickup") %>
+					<i class="fa fa-caret-up" ng-show="shouldShowUpCaret('promised_pickup_date')"></i>
+					<i class="fa fa-caret-down" ng-show="shouldShowDownCaret('promised_pickup_date')"></i>
+				</li>
+
+				<%# Assignment Date %>
+				<li class="assignment-date"
+						ng-show="assignment_date_column"
+						ng-click="sortByColumn('assignment_date')" 
+						title="<%= t('views.vehicle.index.assignment_date') %>">
+					<%= t("views.vehicle.index.assignment_date") %>
+					<i class="fa fa-caret-up" ng-show="shouldShowUpCaret('assignment_date')"></i>
+					<i class="fa fa-caret-down" ng-show="shouldShowDownCaret('assignment_date')"></i>
+				</li>
+
+				<%# Tow provider name %>
+				<li class="subhauler" 
+						ng-show="subhauler_column"
+						ng-click="sortByColumn('subhauler')" 
+						title="<%= t('views.vehicle.index.subhauler') %>">
+					<%= t("views.vehicle.index.subhauler") %>
+					<i class="fa fa-caret-up" ng-show="shouldShowUpCaret('subhauler')"></i>
+					<i class="fa fa-caret-down" ng-show="shouldShowDownCaret('subhauler')"></i>
+				</li>
+
+				<%# Run Condition %>
+				<li class="run-condition" 
+						ng-show="run_condition_column"
+						ng-click="sortByColumn('run_condition')" 
+						title="<%= t('views.vehicle.index.run_condition') %>">
+					<%= t("views.vehicle.index.run_condition") %>
+					<i class="fa fa-caret-up" ng-show="shouldShowUpCaret('run_condition')"></i>
+					<i class="fa fa-caret-down" ng-show="shouldShowDownCaret('run_condition')"></i>
+				</li>
+
+				<%# Auction Date %>
+				<li class="auction-date"
+						ng-show="auction_date_column"
+						ng-click="sortByColumn('auction_date')" 
+						title="<%= t('views.vehicle.index.auction_date') %>">
+					<%= t("views.vehicle.index.auction_date") %>
+					<i class="fa fa-caret-up" ng-show="shouldShowUpCaret('auction_date')"></i>
+					<i class="fa fa-caret-down" ng-show="shouldShowDownCaret('auction_date')"></i>
+				</li>
+
+				<%# Item Number %>
+				<li class="item-num"
+						ng-show="item_num_column"
+						ng-click="sortByColumn('item_num')" 
+						title="<%= t('views.vehicle.index.item_num') %>">
+					<%= t("views.vehicle.index.item_num") %>
+					<i class="fa fa-caret-up" ng-show="shouldShowUpCaret('item_num')"></i>
+					<i class="fa fa-caret-down" ng-show="shouldShowDownCaret('item_num')"></i>
+				</li>
+
+				<%# Row Location %>
+				<li class="row-location"
+						ng-show="row_location_column"
+						ng-click="sortByColumn('row_location')" 
+						title="<%= t('views.vehicle.index.row_location') %>">
+					<%= t("views.vehicle.index.row_location") %>
+					<i class="fa fa-caret-up" ng-show="shouldShowUpCaret('row_location')"></i>
+					<i class="fa fa-caret-down" ng-show="shouldShowDownCaret('row_location')"></i>
+				</li>
+
+				<%# Lot Type %>
+				<li class="lot-type" 
+						ng-show="vehicle_type_column"
+						ng-click="sortByColumn('vehicle_type')" 
+						title="<%= t('views.vehicle.index.lot_type') %>">
+					<%= t("views.vehicle.index.lot_type") %>
+					<i class="fa fa-caret-up" ng-show="shouldShowUpCaret('vehicle_type')"></i>
+					<i class="fa fa-caret-down" ng-show="shouldShowDownCaret('vehicle_type')"></i>
+				</li>
+
+				<%# High bid amount %>
+				<li class="highest-bid" 
+						ng-show="highest_bid_column"
+						ng-click="sortByColumn('high_bid_amount')" 
+						title="<%= t('views.vehicle.index.highest_bid') %>">
+					<%= t("views.vehicle.index.highest_bid") %>
+					<i class="fa fa-caret-up" ng-show="shouldShowUpCaret('high_bid_amount')"></i>
+					<i class="fa fa-caret-down" ng-show="shouldShowDownCaret('high_bid_amount')"></i>
+				</li>
+
+				<%# Reserve %>
+				<li class="min-bid-reserve" 
+						ng-show="min_bid_reserve_column"
+						ng-click="sortByColumn('min_bid_reserve')" 
+						title="<%= t('views.vehicle.index.min_bid_reserve') %>">
+					<%= t("views.vehicle.index.min_bid_reserve") %>
+					<i class="fa fa-caret-up" ng-show="shouldShowUpCaret('min_bid_reserve')"></i>
+					<i class="fa fa-caret-down" ng-show="shouldShowDownCaret('min_bid_reserve')"></i>
+				</li>
+
+				<%# High bid % %>
+				<li class="highest-bid-percent" 
+						ng-show="highest_bid_column"
+						title="<%= t('views.vehicle.index.highest_bid_percent') %>">
+					<%= t("views.vehicle.index.highest_bid_percent") %>
+					<i class="fa fa-caret-up" ng-show="shouldShowUpCaret('highest_bid_percent')"></i>
+					<i class="fa fa-caret-down" ng-show="shouldShowDownCaret('highest_bid_percent')"></i>
+				</li>
+
+				<%# Buy it now Amount %>
+				<li class="buy-it-now" 
+						ng-show="buy_it_now_column"
+						ng-click="sortByColumn('buy_now')" 
+						title="<%= t('views.vehicle.index.buy_it_now') %>">
+					<%= t("views.vehicle.index.buy_it_now") %>
+					<i class="fa fa-caret-up" ng-show="shouldShowUpCaret('buy_now')"></i>
+					<i class="fa fa-caret-down" ng-show="shouldShowDownCaret('buy_now')"></i>
+				</li>
+
+				<%# Sale confirmation status %>
+				<li class="sale-confirmation-status" 
+						ng-show="sale_confirmation_status_column"
+						ng-click="sortByColumn('sale_confirmation_status')" 
+						title="<%= t('views.vehicle.index.sale_confirmation_status') %>">
+					<%= t("views.vehicle.index.sale_confirmation_status") %>
+					<i class="fa fa-caret-up" ng-show="shouldShowUpCaret('sale_confirmation_status')"></i>
+					<i class="fa fa-caret-down" ng-show="shouldShowDownCaret('sale_confirmation_status')"></i>
+				</li>
+
+				<%# Member display name %>
+				<li class="member-name no-sort"
+						ng-show="member_name_column" 
+						title="<%= t('views.vehicle.index.member_name') %>">
+					<%= t("views.vehicle.index.member_name") %>
+				</li>
+
+				<%# Member paid? %>
+				<li class="member-paid" 
+						ng-show="member_paid_column"
+						ng-click="sortByColumn('member_paid')" 
+						title="<%= t('views.vehicle.index.member_paid') %>">
+					<%= t("views.vehicle.index.member_paid") %>
+					<i class="fa fa-caret-up" ng-show="shouldShowUpCaret('member_paid')"></i>
+					<i class="fa fa-caret-down" ng-show="shouldShowDownCaret('member_paid')"></i>
+				</li>
+
+				<%# seller_billing_complete %>
+				<li class="seller-billing-complete" 
+						ng-show="seller_billing_complete_column"
+						ng-click="sortByColumn('seller_billing_complete')" 
+						title="<%= t('views.vehicle.index.seller_billing_complete') %>">
+					<%= t("views.vehicle.index.seller_billing_complete") %>
+					<i class="fa fa-caret-up" ng-show="shouldShowUpCaret('seller_billing_complete')"></i>
+					<i class="fa fa-caret-down" ng-show="shouldShowDownCaret('seller_billing_complete')"></i>
+				</li>
+
+				<%# Award date %>
+				<li class="award-date" 
+						ng-show="award_date_column"
+						ng-click="sortByColumn('member_award_date')" 
+						title="<%= t('views.vehicle.index.award_date') %>">
+					<%= t("views.vehicle.index.award_date") %>
+					<i class="fa fa-caret-up" ng-show="shouldShowUpCaret('member_award_date')"></i>
+					<i class="fa fa-caret-down" ng-show="shouldShowDownCaret('member_award_date')"></i>
+				</li>
+
+				<%# Left yard %>
+				<li class="left-yard" 
+						ng-show="left_yard_column"
+						title="<%= t('views.vehicle.index.left_yard') %>">
+					<%= t("views.vehicle.index.left_yard") %>
+				</li>
+
+				<%# Last lot note %>
+				<li class="lot-note"
+						ng-show="lot_note_column"
+						ng-click="sortByColumn('lot_note')"
+						title="<%= t('views.vehicle.index.lot_note') %>">
+					<%= t("views.vehicle.index.lot_note") %>
+					<i class="fa fa-caret-up" ng-show="shouldShowUpCaret('lot_note')"></i>
+					<i class="fa fa-caret-down" ng-show="shouldShowDownCaret('lot_note')"></i>
+				</li>
+
+				<%# spurce column %>
+				<li class="source"
+						ng-show="source_column"
+						ng-click="sortByColumn('source')"
+						title="<%= t('views.vehicle.index.source') %>">
+					<%= t("views.vehicle.index.source") %>
+					<i class="fa fa-caret-up" ng-show="shouldShowUpCaret('source')"></i>
+					<i class="fa fa-caret-down" ng-show="shouldShowDownCaret('source')"></i>
+				</li>				
+
+
+				<%# Lot State %>
+				<li class="state"
+						ng-show="state_column"
+						title="<%= t('views.vehicle.index.status') %>">
+					<%= t("views.vehicle.index.status") %>
+				</li>
+
+				<%# Service order name %>
+				<li class="service-order-name no-sort"
+						ng-show="service_order_name_column"
+						title="<%= t('views.vehicle.index.service_order_name') %>">
+					<%= t("views.vehicle.index.service_order_name") %>
+				</li>
+
+				<%# Service order approved date %>
+				<li class="service-order-updated-date no-sort"
+						ng-show="service_order_updated_date_column"
+						title="<%= t('views.vehicle.index.service_order_updated_date') %>">
+					<%= t("views.vehicle.index.service_order_updated_date") %>
+				</li>
+
+				<%# Service order status %>
+				<li class="service-order-status no-sort"
+						ng-show="service_order_status_column"
+						title="<%= t('views.vehicle.index.service_order_status') %>">
+					<%= t("views.vehicle.index.service_order_status") %>
+				</li>
+
+				<%# Hold (pick-up or sale hold) %>
+				<li class="hold no-sort"
+						ng-show="hold_for_pickup_or_sale_column"
+						title="<%= t('views.vehicle.index.on_hold') %>">
+					<%= t("views.vehicle.index.on_hold") %>
+				</li>
+
+				<%# Hold Date (pick-up or sale hold date) %>
+				<li class="hold-date" 
+						ng-show="hold_for_pickup_or_sale_date_column"
+						ng-click="sortByColumn('hold_for_pickup_or_sale_date')"
+						title="<%= t('views.vehicle.index.hold_date') %>">
+					<%= t("views.vehicle.index.hold_date") %>
+					<i class="fa fa-caret-up" ng-show="shouldShowUpCaret('hold_for_pickup_or_sale_date')"></i>
+					<i class="fa fa-caret-down" ng-show="shouldShowDownCaret('hold_for_pickup_or_sale_date')"></i>
+				</li>
+
+				<%# Hold Reason (pick-up or sale hold reason) %>
+		        <li class="hold-reason" 
+		            ng-show="hold_for_pickup_or_sale_reason_column"
+		            ng-click="sortByColumn('hold_for_pickup_or_sale_reason')"
+		            title="<%= t('views.vehicle.index.hold_reason') %>">
+		            <%= t("views.vehicle.index.hold_reason") %>
+		            <i class="fa fa-caret-up" ng-show="shouldShowUpCaret('hold_for_pickup_or_sale_reason')"></i>
+					<i class="fa fa-caret-down" ng-show="shouldShowDownCaret('hold_for_pickup_or_sale_reason')"></i>
+		        </li>
+
+						<%# Advance Charges Paid? (Yes, No, N/A, nil [empty]) %>
+		        <li class="adv-charges-paid no-sort" 
+		            ng-show="adv_charges_paid_column"
+		            title="<%= t('views.vehicle.index.advance_charges_paid') %>">
+		            <%= t("views.vehicle.index.advance_charges_paid") %>
+		        </li>
+                <%# OK To Pay Charges %>
+                <li class= "ok-pay-charge" ng-show="ok_pay_charge_column" title="<%= t('views.vehicle.index.ok_pay_charge') %>">
+                    <%= t("views.vehicle.index.ok_pay_charge") %>
+                    <i class="fa fa-caret-up" ng-show="shouldShowUpCaret('ok_pay_charge')"></i>
+                    <i class="fa fa-caret-down" ng-show="shouldShowDownCaret('ok_pay_charge')"></i>
+                </li>
+				<%# Towable? %>
+				<li class ="towable" ng-show="towable_column" title="<%= t('views.vehicle.index.towable') %>">
+					<%= t("views.vehicle.index.towable") %>
+					<i class="fa fa-caret-up" ng-show="shouldShowUpCaret('towable')"></i>
+					<i class="fa fa-caret-down" ng-show="shouldShowDownCaret('towable')"></i>
+				</li>
+
+				<%# Towing - Assign for pickup %>
+				<li class="towing-assignment no-borders no-sort selection" 
+						ng-show="towing_assignment_column">
+					<input type="checkbox" 
+								 ng-model="towingAssignmentForAllVisibleLots"
+								 data-field-name="towingAssignmentForAllVisibleLots"
+                    ng-change="towingAssignmentForAllValueChanged()">
+				</li>
+
+				<%# Towing - Assign Tow Provider Button %>
+				<li class="towing-assignment no-borders no-sort action"
+						ng-show="towing_assignment_column">
+					<i class="fa fa-truck fa-border action" 
+						 data-toggle="modal" 
+						 data-target="#assign-tow-provider-dialog"
+						 ng-show="showMassAssignmentButton()" ng-click="getSubhaulers()"></i>
+				</li>
+
+				<%# Clear sort order button %>
+				<i class="fa fa-times" ng-show="sortIsAscending != null"
+					 ng-click="clearSortOrder()" title="<%= t('views.shared.clear_sort_order') %>"></i>
+			</ul>
+		</footer>
+	</section>
+
+	<%# The Data %>
+	<div>
+		<ul>
+			<li ng-class="{ error: massAssignErrorForLot(vehicle) }" ng-repeat="vehicle in vehicles">
+				<ul ng-click="showVehicle(vehicle)">
+					<li class="flag-status">
+						<i class="fa fa-flag" ng-if="vehicle.api_error" ng-attr-title={{vehicle.api_error.description}} ></i>
+					</li>
+
+					<li class="locked-status" ng-if="locked_status_column">
+						<i class="fa fa-lock" ng-show="vehicle.editable == 'false'"></i>
+					</li>
+					<li class="lot" ng-show="lot_num_column">
+						{{ vehicle.lot_num }}
+					</li>
+					<li class="year" ng-show="year_column">
+						{{ vehicle.year }}
+					</li>
+					<li class="make" ng-show="make_column">
+						<%#{{ (vehicle.vehicle_type.vehicle_type_group.code == 'V' && !vehicle.custom_make_enabled && !vehicle.custom_make) ? vehicle.model.make.name : vehicle.custom_make }} %>
+						{{ (!vehicle.custom_make_enabled && !vehicle.custom_make) ? vehicle.model.make.name : vehicle.custom_make }}
+					</li>
+					<li class="model" ng-show="model_column">
+						<%#{{ (vehicle.vehicle_type.vehicle_type_group.code == 'V' && !vehicle.custom_model_enabled ) ? vehicle.model.name : vehicle.custom_model }} %>
+						{{ (!vehicle.custom_model_enabled) ? vehicle.model.name : vehicle.custom_model }}
+					</li>
+					<li class="color" ng-show="color_column">
+						{{ vehicle.color.display_text }}
+					</li>
+					<li class="seller" ng-show="seller_column">
+						{{ vehicle.seller.name }}
+					</li>
+					<li class="claim-rep" ng-show="claim_rep_column">
+						{{ vehicle.adjuster.name() }}
+					</li>
+					<li class ="location" ng-show="location_column">
+						{{ vehicle.facility.name }}
+					</li>
+					<li class ="city" ng-show="city_column">
+						{{ vehicle.facility.address.city }}
+					</li>
+					<li class="state-province" ng-show="state_province_column">
+						{{ vehicle.facility.address.state.display_text }}
+					</li>
+					<li class ="zip" ng-show="zip_column">
+						{{ vehicle.facility.address.zip }}
+					</li>
+					<li class ="promised-pickup-date" ng-show="promised_pickup_date_column">
+						{{ vehicle.promised_pickup_date | date:"shortDate" }}
+					</li>
+					<li class="assignment-date" ng-show="assignment_date_column">
+						{{ vehicle.assignment_date | date:"shortDate" }}
+					</li>
+					<li class="subhauler" ng-show="subhauler_column">
+						{{ vehicle.subhauler.provider_name }}
+					</li>
+					<li class="run-condition" ng-show="run_condition_column">
+						{{ vehicle.run_condition.display_text }}
+					</li>
+					<li class="auction-date" ng-show="auction_date_column">
+						{{ vehicle.auction_datum.auction_date | date:"shortDate" }}
+					</li>
+					<li class="item-num" ng-show="item_num_column">
+						{{ vehicle.item_num }}
+					</li>
+					<li class="row-location" ng-show="row_location_column && vehicle.offsite()">
+						Offsite
+					</li>
+					<li class="row-location" ng-show="row_location_column && !vehicle.offsite()">
+						{{ vehicle.yard_row.row_code }}
+					</li>
+					<li class="lot-type" ng-show="vehicle_type_column">
+						{{ vehicle.vehicle_type.display_text }}
+					</li>
+					<li class="highest-bid" ng-show="highest_bid_column">
+						{{ obFormatCurrency(vehicle.high_bid_amount, false) }}
+					</li>
+					<li class="min-bid-reserve" ng-show="min_bid_reserve_column">
+						{{ obFormatCurrency(vehicle.min_bid_reserve, false) }}
+					</li>
+					<li class="highest-bid-percent" ng-show="highest_bid_percent_column">
+						{{ vehicle.highBidPercent() }}
+					</li>
+					<li class="buy-it-now" ng-show="buy_it_now_column">
+						{{ obFormatCurrency(vehicle.buy_now, false) }}
+					</li>
+					<li class="sale-confirmation-status" ng-show="sale_confirmation_status_column">
+						{{ vehicle.sale_confirmation_status.code }}
+					</li>
+					<li class="member-name" ng-show="member_name_column">
+						{{ vehicle.member ? (vehicle.member.full_name ? vehicle.member.full_name : vehicle.member.displayName() ) : '' }}
+					</li>
+					<li class="member-paid" ng-show="member_paid_column">
+						{{ vehicle.member_paid == "true" ? "Y" : "N" }}
+					</li>
+					<li class="seller-billing-complete" ng-show="seller_billing_complete_column">
+						{{ vehicle.seller_billing_complete == "true" ? "Y" : "N" }}
+					</li>
+					<li class="award-date" ng-show="award_date_column">
+						{{ vehicle.member_award_date | date:"shortDate"}}
+					</li>
+					<li class="left-yard" ng-show="left_yard_column">
+						{{ vehicle.leftYard() ? "Y" : "N" }}
+					</li>
+					<li class="lot-note" ng-show="lot_note_column" ng-bind-html="formatVehicleNote(vehicle.notes[0])"></li>
+					<li class="source" ng-show="source_column"  >
+						{{ vehicle.lot_creation_from }}
+					</li>
+					<li class="state" ng-show="state_column">
+						{{ vehicle.state_display_text }}
+					</li>
+					<li class="service-order-name" ng-show="service_order_name_column">
+						{{ vehicle.serviceOrderName() }}
+					</li>
+					<li class="service-order-updated-date" ng-show="service_order_updated_date_column">
+						{{ vehicle.serviceOrderUpdated() | date:"shortDate"}}
+					</li>
+					<li class="service-order-status" ng-show="service_order_status_column">
+						{{ vehicle.serviceOrderStatus() }}
+					</li>
+					<li class="hold" ng-show="hold_for_pickup_or_sale_column">
+						{{ vehicle.holdsDisplayString() }}
+					</li>
+					<li class="hold-date" ng-show="hold_for_pickup_or_sale_date_column">
+						{{ vehicle.holdDate() | date:"shortDate" }}
+					</li>
+					<li class="hold-reason" ng-show="hold_for_pickup_or_sale_reason_column">
+						{{ vehicle.holdReason() }}
+					</li>
+					<li class="adv-charges-paid" ng-show="adv_charges_paid_column">
+	                    {{ vehicle.advance_charges_paid_text() }}
+	                </li>
+                    <li class="ok-pay-charge" ng-show="ok_pay_charge_column">
+                        {{ vehicle.ok_pay_charge_text() }}
+                    </li>
+                    <li class ="towable" ng-show="towable_column">
+						{{ vehicle.towable }}
+					</li>
+					<li class="towing-assignment" ng-show="towing_assignment_column">
+						<input type="checkbox" 
+									 ng-model="vehicle.assign_towing"
+									 data-field-name="vehicle_assign_towing"
+									 ng-click="towingAssignmentClicked($event, vehicle)"
+	                 ng-class="{ disabled: !towingAssignmentAllowed(vehicle) }"
+	                 ng-disabled="!towingAssignmentAllowed(vehicle)">
+					</li>
+					<%# empty for proper UI spacing %>
+					<li class="towing-assignment" ng-show="towing_assignment_column">
+					</li>
+				</ul>
+			</li>
+		</ul>
+	</div>
+
+	<div>
+		<%# The modals for tow provider assignment %>
+		<% if @state_desired == "wtg_for_driver_dispatch" %>
+			<%# select tow provider and trip date %>
+			<%= render partial: "shared/dialogs/tow_provider_mass_assignment/assign_tow_provider_dialog" %>
+			<%# confirm data %>
+			<%= render partial: "shared/dialogs/tow_provider_mass_assignment/confirm_assign_tow_provider_dialog" %>
+			<%# print (if desired) and close %>
+			<%= render partial: "shared/dialogs/tow_provider_mass_assignment/assign_tow_provider_success_dialog" %>
+		<% end %>
+	</div>
+
+</div>
